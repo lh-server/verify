@@ -1,5 +1,5 @@
 # Light's Hope Export Verifier
-This project contains a C++ example implementation of a Light's Hope character data verifier. When provided with the contents of  
+This project contains a C++ example implementation of a Light's Hope character data verifier. When provided with the contents of 
 an exported account data archive, it can ensure that the data has not been tampered with since being exported from the Light's Hope website.
 To achieve this, it uses ECDSA (Elliptic Curve Digital Signature Algorithm) to generate a signature using an asymmetric key pair that can
 then be verified by the end-user to ensure no tampering has taken place. This is the same fundamental technique used to sign cryptocurrency
