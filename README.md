@@ -83,13 +83,13 @@ This ASCII diagram shows the relationship between each realm.
 ```
  ========================= Nostalrius =============================
 
-       Nostalrius Begins
-               |
-        Nostalrius PvP   Nostalrius PvE
-               x                x
-======================= Elysium Project ===========================
-               |                |
- Valkyrie------v                |                                
+      Nostalrius Begins
+              |
+       Nostalrius PvP   Nostalrius PvE
+              x                x
+====================== Elysium Project =============================
+              |                |
+ Valkyrie-----v                |                                
            Anathema       Darrowshire
                |               |              Elysium PvP
                |               |                  |           Zeth'Kur
@@ -97,7 +97,7 @@ This ASCII diagram shows the relationship between each realm.
                v---------------v------------------v-------------- <
                |               |                  |
                |               |                  |
-17/10/2017 ============= Light's Hope ===========================
+17/10/2017 ============= Light's Hope =============================
                |               |                  | 
            Anathema       Darrowshire        Lightbringer
                |               |                  |             
