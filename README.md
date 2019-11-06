@@ -16,8 +16,36 @@ Each account is exported as a zip archive containing three files; account.json, 
 modified since export. This file is provided only to assist in in the event of key revokation. Under no circumstances should it be used 
 to verify whether the data is from Light's Hope. A malicious user could replace this key and signature with their own - use only the 
 key from the Light's Hope website. This example implementation will not accept an ASCII-encoded `pubkey` without modification.
-* `signature` contains the cryptographic signature for `characters.json`.
+* `signature` contains the cryptographic signature for `characters.json`, encoded as an ASCII hex string
+* `signature.der` contains cryptographic signature for `characters.json`, encoded as ASN.1 DER. Note: This file may not 
+be available in older exports. See the notes at the bottom for further details.
 
+### TL;DR verification examples
+#### Using this example application
+With the `signature` file:
+
+```verifier -pubkey pubkey.ber -signature <ASCII encoded hex string> -json characters.json```
+
+With the `signature.der` file:
+
+```verifier -pubkey pubkey.ber -sigder <DER encoded signature file name> -json characters.json```
+
+Or pipe the JSON data in:
+
+```verifier -pubkey pubkey.ber <-signature or -sigder> < characters.json```
+
+#### OpenSSL command line
+`openssl dgst -sha256 -verify pubkey.pem -signature signature.der characters.json`
+
+#### OpenSSL with PHP
+```php
+$signature = file_get_contents("signature.der");
+$chars_json = file_get_contents("characters.json");
+$pubkey = openssl_pkey_get_public(file_get_contents("pubkey.pem"));
+$result = openssl_verify($chars_json, $signature, $pubkey, OPENSSL_ALGO_SHA256);
+```
+
+Doesn't work? Something missing? Read the rest of this document.
 ### Building
 Building this project requires CMake, the Botan cryptographic library and a recent version of Clang, GCC or Visual Studio 2019.
 Botan is available as a package on most Linux distributions.
@@ -28,7 +56,7 @@ As mentioned above, the public key included within the data archive should not b
 Only use the public key provided on the Light's Hope website.
 
 To use the application, simply provide three arguments; `-pubkey`, `-json` and `-signature`. `-json` is the provided `characters.json`, 
-`pubkey` is the public key available from the Light's Hope website or this repository (see the root) and `-signature` is expected 
+`pubkey` is the PEM or BER encoded public key available from the Light's Hope website or this repository (see the root) and `-signature` is expected 
 cryptographic signature, provided directly on the command line rather than as a file. By default, `-signature` expects a decimal value so prepend
 `0x` when providing a hexadecimal value.
 
@@ -36,6 +64,8 @@ If verification succeeds, the application will print `Signature OK`, or `Signatu
 whereas `1` indicates a failed verification. Any other value indicates that an error occured - see `stderr`.
 
 >Note: You can optionally omit the `-json` argument and instead pipe the file to the application through stdin.
+>
+>Note: You can optionally use -sigder and provide the signature.der file rather than providing a string to -signaturee
 
 ### Importing
 
@@ -107,3 +137,12 @@ This ASCII diagram shows the relationship between each realm.
 25/08/2019                                        x             x              x
 ```
 
+#### Notes
+#### Where's signature.der? It's missing!
+`signature.der` was not included in the earliest of exports but it is required to use OpenSSL for verification. However, you can easily convert
+the provided `signature` file to DER through the following steps:
+1) Prepend the following sequence to the signature string: 3081880242
+2) Convert the ASCII string back to a binary representation (for example, PHP's `hex2bin`)
+3) Done!
+
+If you're providing an import service, you may also wish to ask the user to export their data again.

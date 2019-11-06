@@ -37,13 +37,16 @@
 #include <sstream>
 #include <unordered_map>
 #include <utility>
+#include <cstdlib>
+#include <cstdint>
 
 using namespace std::literals;
 
 enum class Argument {
 	JSON_FILE,
 	PUB_KEY,
-	SIGNATURE
+	SIGNATURE,
+	SIG_DER
 };
 
 struct Option {
@@ -56,12 +59,14 @@ ExtractedArgs extracted_params;
 const std::unordered_map<Argument, Option> expected_params {
 	{ Argument::JSON_FILE, {"-json",      "filename of the JSON document"          } },
 	{ Argument::PUB_KEY,   {"-pubkey",    "the public key to verify the signature" } },
-	{ Argument::SIGNATURE, {"-signature", "the expected file signature"            } }
+	{ Argument::SIGNATURE, {"-signature", "the expected file signature, as an ASCII encoded hex string"       } },
+	{ Argument::SIG_DER,   {"-sigder",    "filename of a DER encoded signature to use in place of -signature" } }
 };
 
 ExtractedArgs extract_args(const char* argv[]);
 std::string extract_file(const ExtractedArgs& args);
 bool verify(const ExtractedArgs& args, const std::string& data);
+std::vector<std::uint8_t> signature_bytes(const ExtractedArgs& args, Botan::PK_Verifier& verifier);
 
 int main(const int argc, const char* argv[]) try {
 	if (argc < 2) {
@@ -115,25 +120,60 @@ std::string extract_file(const ExtractedArgs& args) {
 }
 
 bool verify(const ExtractedArgs& args, const std::string& data) {
-	if (const auto & res = args.find(Argument::PUB_KEY);
+	if (const auto& res = args.find(Argument::PUB_KEY);
 		res == args.end() || args.at(Argument::PUB_KEY).empty()) {
 		throw std::runtime_error("Public key appears to be missing or empty.");
 	}
 
-	if (const auto & res = args.find(Argument::SIGNATURE);
-		res == args.end() || args.at(Argument::SIGNATURE).empty()) {
-		throw std::runtime_error("Signature appears to be missing or empty.");
-	}
-
 	const auto pub_key = Botan::X509::load_key(args.at(Argument::PUB_KEY).data());
 	Botan::PK_Verifier verifier(*pub_key, "EMSA1(SHA-256)");
+	const auto& signature = signature_bytes(args, verifier);
 	verifier.update(data);
-
-	const auto signature = Botan::BigInt::encode(
-		Botan::BigInt(std::string(args.at(Argument::SIGNATURE)))
-	);
-
 	return verifier.check_signature(signature);
+}
+
+std::vector<std::uint8_t> signature_bytes(const ExtractedArgs& args, Botan::PK_Verifier& verifier) {
+	bool found_sig = false;
+
+	if (const auto& res = args.find(Argument::SIGNATURE);
+		res != args.end() && !args.at(Argument::SIGNATURE).empty()) {
+		const auto sigstr = res->second;
+
+		if (sigstr.size() % 2) {
+			throw std::runtime_error("Signature cannot contain an odd number of characters.");
+		}
+
+		std::vector<std::uint8_t> signature(sigstr.size() / 2);
+
+		for (auto i = 0u; i < signature.size(); ++i) {
+			const char hex_byte[3] { static_cast<char>(sigstr[i * 2]), static_cast<char>(sigstr[(i * 2) + 1]), '\0' };
+			signature[i] = static_cast<std::uint8_t>(std::strtol(hex_byte, nullptr, 16));
+			std::cout << "Index is " << i << "& size is " << signature.size() << "\n";
+		}
+
+		verifier.set_input_format(Botan::Signature_Format::IEEE_1363);
+		return signature;
+	}
+
+	if (const auto& res = args.find(Argument::SIG_DER);
+		res != args.end() && !args.at(Argument::SIG_DER).empty()) {
+		std::ifstream file(res->second.data(), std::ios::binary);
+
+		if (!file) {
+			throw std::runtime_error("Unable to open signature file");
+		}
+
+		file.seekg(0, std::ios::end);
+		auto length = file.tellg();
+		file.seekg(0, std::ios::beg);
+
+		std::vector<std::uint8_t> signature(static_cast<std::size_t>(length));
+		file.read(reinterpret_cast<char*>(signature.data()), length);
+		verifier.set_input_format(Botan::Signature_Format::DER_SEQUENCE);
+		return signature;
+	}
+
+	throw std::runtime_error("Unable to load signature bytes. Did you provide either -signature or -sigder?");
 }
 
 void print_help() {
